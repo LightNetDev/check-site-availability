@@ -58,7 +58,7 @@ The action exits with a non-zero status in these cases:
 
 When a check fails, the action also writes a short summary to `GITHUB_STEP_SUMMARY` so the failure is easier to review in the workflow run UI.
 
-## Release and Versioning
+## Versioning
 
 Consumers should reference the stable major tag:
 
@@ -66,10 +66,6 @@ Consumers should reference the stable major tag:
 uses: LightNetDev/check-site-availability@v1
 ```
 
-Release flow for maintainers:
+This keeps workflows on the latest compatible `v1` release while still allowing exact version pinning when needed.
 
-1. Create and push a version tag such as `v1.0.0`.
-2. Create or move the major tag `v1` to the same commit.
-3. Publish a GitHub Release for that version.
-
-This keeps existing consumers on the latest compatible `v1` release while still allowing pinning to an exact version when needed.
+Maintainer release instructions live in [RELEASING.md](./RELEASING.md).
