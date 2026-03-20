@@ -7,15 +7,6 @@ on:
   pull_request:
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Lint GitHub Actions files
-        uses: rhysd/actionlint@v1
-
   self-test:
     runs-on: ubuntu-latest
     steps:

@@ -26,7 +26,7 @@ It is intentionally small and dependency-light:
 - [`RELEASING.md`](./RELEASING.md)
   Maintainer guide for versioning and exact release commands. Read this before changing release flow.
 - [`.github/workflows/validate.yml`](./.github/workflows/validate.yml)
-  CI workflow that lints GitHub Actions files and self-tests the action with `uses: ./`.
+  CI workflow that self-tests the action with `uses: ./`.
 - [`test/fixtures/index.html`](./test/fixtures/index.html)
   Local fixture served by CI for the success-path self-test.
 - [`.gitignore`](./.gitignore)
@@ -48,7 +48,6 @@ Primary validation lives in [`.github/workflows/validate.yml`](./.github/workflo
 
 That workflow checks:
 
-- GitHub Actions file linting via `actionlint`
 - success case against the local fixture server
 - missing-text failure case
 - request-failure case
