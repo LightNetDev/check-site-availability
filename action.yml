@@ -47,7 +47,7 @@ runs:
           exit 1
         fi
 
-        if ! printf '%s' "$response_body" | grep -Fq -- "$INPUT_EXPECTED_TEXT"; then
+        if ! grep -Fq -- "$INPUT_EXPECTED_TEXT" <<<"$response_body"; then
           echo "::error title=Site monitoring failed::Expected text was not found at $INPUT_URL."
           {
             echo "## Site monitoring failed"

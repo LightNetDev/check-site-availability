@@ -31,6 +31,20 @@ jobs:
           cat "$RUNNER_TEMP/site-server.log"
           exit 1
 
+      - name: Guards against the old broken-pipe matcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -Fq 'grep -Fq -- "$INPUT_EXPECTED_TEXT" <<<"$response_body"' action.yml; then
+            echo "Expected pipefail-safe matcher was not found"
+            exit 1
+          fi
+
+          if grep -Fq 'printf '\''%s'\'' "$response_body" | grep -Fq -- "$INPUT_EXPECTED_TEXT"' action.yml; then
+            echo "Found the old pipefail-unsafe matcher"
+            exit 1
+          fi
+
       - name: Succeeds when expected text is present
         uses: ./
         with:
