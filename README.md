@@ -11,6 +11,7 @@ This action is designed for simple site validation checks in workflows where a s
 - Fails the workflow if the request fails
 - Fails the workflow if the response body does not contain the expected text
 - Writes failure details to the GitHub step summary
+- Logs a truncated response body preview when the expected text is missing
 
 ## What It Does Not Do
 
@@ -56,6 +57,8 @@ The action exits with a non-zero status in these cases:
 - the response body does not include the expected text
 
 When a check fails, the action also writes a short summary to `GITHUB_STEP_SUMMARY` so the failure is easier to review in the workflow run UI.
+
+If the request succeeds but the expected text is missing, the action also prints a truncated response body preview to the workflow log to help with debugging without dumping the entire page.
 
 ## Versioning
 

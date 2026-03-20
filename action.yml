@@ -49,10 +49,24 @@ runs:
 
         if ! grep -Fq -- "$INPUT_EXPECTED_TEXT" <<<"$response_body"; then
           echo "::error title=Site monitoring failed::Expected text was not found at $INPUT_URL."
+          response_body_preview_limit=4000
+          response_body_size="${#response_body}"
+          response_body_preview="${response_body:0:response_body_preview_limit}"
+          response_body_preview_size="${#response_body_preview}"
+
+          echo "::group::Response body preview"
+          printf '%s\n' "$response_body_preview"
+          if [ "$response_body_size" -gt "$response_body_preview_size" ]; then
+            echo
+            echo "[truncated ${response_body_preview_size}/${response_body_size} characters]"
+          fi
+          echo "::endgroup::"
+
           {
             echo "## Site monitoring failed"
             echo "- URL: [$INPUT_URL]($INPUT_URL)"
             echo "- Missing text: \`$INPUT_EXPECTED_TEXT\`"
+            echo "- Response body preview: Logged to the workflow console"
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
         fi
