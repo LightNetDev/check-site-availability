@@ -33,8 +33,7 @@ jobs:
   check-site:
     runs-on: ubuntu-slim
     steps:
-      - name: Check page content
-        uses: LightNetDev/check-site-availability@v1
+      - uses: LightNetDev/check-site-availability@v1
         with:
           url: https://example.com
           expected-text: Example Domain
