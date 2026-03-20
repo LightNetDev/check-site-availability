@@ -1,0 +1,84 @@
+name: Validate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Lint GitHub Actions files
+        uses: rhysd/actionlint@v1
+
+  self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Start local test server
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8123 --directory test/fixtures >"$RUNNER_TEMP/site-server.log" 2>&1 &
+          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8123/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Local test server did not start"
+          cat "$RUNNER_TEMP/site-server.log"
+          exit 1
+
+      - name: Succeeds when expected text is present
+        uses: ./
+        with:
+          url: http://127.0.0.1:8123/
+          expected-text: Site is healthy
+
+      - name: Fails when expected text is missing
+        id: missing_text
+        continue-on-error: true
+        uses: ./
+        with:
+          url: http://127.0.0.1:8123/
+          expected-text: This text does not exist
+
+      - name: Assert missing-text failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "${{ steps.missing_text.outcome }}" = "failure" ]
+
+      - name: Fails when the request cannot be completed
+        id: request_failure
+        continue-on-error: true
+        uses: ./
+        with:
+          url: http://127.0.0.1:65535/
+          expected-text: Site is healthy
+
+      - name: Assert request failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "${{ steps.request_failure.outcome }}" = "failure" ]
+
+      - name: Stop local test server
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+            kill "$SERVER_PID"
+          fi

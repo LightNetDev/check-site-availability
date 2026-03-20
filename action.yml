@@ -1,0 +1,60 @@
+name: Check site availability
+description: Fetch a URL and verify that the response body includes the expected text fragment.
+
+branding:
+  icon: activity
+  color: green
+
+inputs:
+  url:
+    description: Full URL to request.
+    required: true
+  expected-text:
+    description: Text fragment that must appear in the response body.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check URL for expected text
+      shell: bash
+      env:
+        INPUT_URL: ${{ inputs.url }}
+        INPUT_EXPECTED_TEXT: ${{ inputs.expected-text }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$INPUT_URL" ] || [ -z "$INPUT_EXPECTED_TEXT" ]; then
+          echo "::error title=Site monitoring configuration error::Both 'url' and 'expected-text' inputs are required."
+          {
+            echo "## Site monitoring failed"
+            echo "- Reason: Missing required action input."
+            echo "- URL: \`${INPUT_URL:-<empty>}\`"
+            echo "- Expected text: \`${INPUT_EXPECTED_TEXT:-<empty>}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi
+
+        echo "Checking $INPUT_URL"
+
+        if ! response_body="$(curl -fsSL --retry 3 --max-time 30 "$INPUT_URL")"; then
+          echo "::error title=Site monitoring failed::Request failed for $INPUT_URL."
+          {
+            echo "## Site monitoring failed"
+            echo "- URL: [$INPUT_URL]($INPUT_URL)"
+            echo "- Reason: The HTTP request failed."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi
+
+        if ! printf '%s' "$response_body" | grep -Fq -- "$INPUT_EXPECTED_TEXT"; then
+          echo "::error title=Site monitoring failed::Expected text was not found at $INPUT_URL."
+          {
+            echo "## Site monitoring failed"
+            echo "- URL: [$INPUT_URL]($INPUT_URL)"
+            echo "- Missing text: \`$INPUT_EXPECTED_TEXT\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi
+
+        echo "Site check passed for $INPUT_URL"
