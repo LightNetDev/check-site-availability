@@ -28,7 +28,7 @@ name: Check site availability
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "17 * * * *"
 
 jobs:
   check-site:
@@ -39,6 +39,14 @@ jobs:
           url: https://example.com
           expected-text: Example Domain
 ```
+
+GitHub recommends avoiding scheduled workflows at the start of the hour because high load at those times can delay or drop queued runs. Pick an offset minute such as `17` instead of `0` for more reliable checks. See [GitHub's schedule event notes](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+
+If you want email alerts when a check fails, enable GitHub Actions email notifications for the account that owns or maintains the workflow and optionally limit them to failed workflows only. See [Managing GitHub Actions notifications](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-github-actions-notifications).
+
+For testing, you can trigger the workflow manually with `workflow_dispatch` from the Actions tab and choose the branch to run. The workflow file must exist on the repository's default branch for the **Run workflow** button to appear. See [Manually running a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+
+Scheduled monitoring is not a good fit for **public repositories** that may sit idle for long periods. GitHub automatically disables scheduled workflows in a public repository after 60 days without repository activity. See [GitHub's schedule event notes](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
 ## Inputs
 
