@@ -51,6 +51,11 @@ jobs:
           url: http://127.0.0.1:8123/
           expected-text: Site is healthy
 
+      - name: Succeeds when expected text is omitted
+        uses: ./
+        with:
+          url: http://127.0.0.1:8123/
+
       - name: Fails when expected text is missing
         id: missing_text
         continue-on-error: true
@@ -78,6 +83,19 @@ jobs:
         run: |
           set -euo pipefail
           [ "${{ steps.request_failure.outcome }}" = "failure" ]
+
+      - name: Fails when availability check cannot be completed
+        id: availability_failure
+        continue-on-error: true
+        uses: ./
+        with:
+          url: http://127.0.0.1:65535/
+
+      - name: Assert availability failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ "${{ steps.availability_failure.outcome }}" = "failure" ]
 
       - name: Stop local test server
         if: always()

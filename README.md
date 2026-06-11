@@ -1,15 +1,16 @@
 # Check Site Availability
 
-A reusable GitHub Action that fetches a URL and verifies that the response body contains an expected text fragment.
+A reusable GitHub Action that verifies a URL is available, optionally checking that the response body contains an expected text fragment.
 
-This action is designed for simple site validation checks in workflows where a successful HTTP response is not enough on its own. It helps catch cases where a page still responds but is missing critical content.
+This action is designed for simple site and file validation checks. It can catch cases where a page still responds but is missing critical content, and it can also check that large files such as PDFs, MP3s, or MP4s are available without downloading the whole file.
 
 ## What It Does
 
-- Fetches a URL with `curl`
+- Requests a URL with `curl`
 - Retries transient request failures up to 3 times
 - Fails the workflow if the request fails
-- Fails the workflow if the response body does not contain the expected text
+- Fails the workflow if the response body does not contain the expected text, when `expected-text` is provided
+- Checks availability with a `HEAD` request, falling back to a one-byte range request, when `expected-text` is omitted
 - Writes failure details to the GitHub step summary
 - Logs a truncated response body preview when the expected text is missing
 
@@ -40,6 +41,25 @@ jobs:
           expected-text: Example Domain
 ```
 
+To check that a large file is available without downloading the full response body, omit `expected-text`:
+
+```yaml
+name: Check file availability
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 * * * *"
+
+jobs:
+  check-file:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: LightNetDev/check-site-availability@v1
+        with:
+          url: https://files.example.com/file.pdf
+```
+
 GitHub recommends avoiding scheduled workflows at the start of the hour because high load at those times can delay or drop queued runs. Pick an offset minute such as `17` instead of `0` for more reliable checks. See [GitHub's schedule event notes](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
 If you want email alerts when a check fails, enable GitHub Actions email notifications for the account that owns or maintains the workflow and optionally limit them to failed workflows only. See [Managing GitHub Actions notifications](https://docs.github.com/en/subscriptions-and-notifications/how-tos/managing-github-actions-notifications).
@@ -50,23 +70,25 @@ Scheduled monitoring is not a good fit for **public repositories** that may sit 
 
 ## Inputs
 
-| Input           | Required | Description                                                  |
-| --------------- | -------- | ------------------------------------------------------------ |
-| `url`           | Yes      | Full URL to request.                                         |
-| `expected-text` | Yes      | Literal text fragment that must appear in the response body. |
+| Input           | Required | Description                                                                                 |
+| --------------- | -------- | ------------------------------------------------------------------------------------------- |
+| `url`           | Yes      | Full URL to request.                                                                        |
+| `expected-text` | No       | Literal text fragment that must appear in the response body. Omit for availability checks. |
 
 ## Failure Behavior
 
 The action exits with a non-zero status in these cases:
 
 - `url` is missing
-- `expected-text` is missing
 - the HTTP request fails
-- the response body does not include the expected text
+- the response body does not include the expected text, when `expected-text` is provided
+- the URL does not return a successful response to either a `HEAD` request or a one-byte range request, when `expected-text` is omitted
 
 When a check fails, the action also writes a short summary to `GITHUB_STEP_SUMMARY` so the failure is easier to review in the workflow run UI.
 
 If the request succeeds but the expected text is missing, the action also prints a truncated response body preview to the workflow log to help with debugging without dumping the entire page.
+
+When `expected-text` is omitted, the action does not download the full response body. It first sends a `HEAD` request. If the server does not accept that request, it falls back to a `GET` request with `Range: bytes=0-0` and refuses responses larger than one byte.
 
 ## Versioning
 

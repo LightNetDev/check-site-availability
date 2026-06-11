@@ -1,5 +1,5 @@
 name: Check site availability
-description: Fetch a URL and verify that the response body includes the expected text fragment.
+description: Verify that a URL is available, optionally requiring the response body to include expected text.
 
 branding:
   icon: activity
@@ -10,13 +10,13 @@ inputs:
     description: Full URL to request.
     required: true
   expected-text:
-    description: Text fragment that must appear in the response body.
-    required: true
+    description: Optional text fragment that must appear in the response body. Omit to check URL availability only.
+    required: false
 
 runs:
   using: composite
   steps:
-    - name: Check URL for expected text
+    - name: Check URL availability
       shell: bash
       env:
         INPUT_URL: ${{ inputs.url }}
@@ -24,18 +24,43 @@ runs:
       run: |
         set -euo pipefail
 
-        if [ -z "$INPUT_URL" ] || [ -z "$INPUT_EXPECTED_TEXT" ]; then
-          echo "::error title=Site monitoring configuration error::Both 'url' and 'expected-text' inputs are required."
+        if [ -z "$INPUT_URL" ]; then
+          echo "::error title=Site monitoring configuration error::The 'url' input is required."
           {
             echo "## Site monitoring failed"
             echo "- Reason: Missing required action input."
             echo "- URL: \`${INPUT_URL:-<empty>}\`"
-            echo "- Expected text: \`${INPUT_EXPECTED_TEXT:-<empty>}\`"
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
         fi
 
         echo "Checking $INPUT_URL"
+
+        if [ -z "$INPUT_EXPECTED_TEXT" ]; then
+          head_status="$(curl -fsSLI --retry 3 --max-time 30 --output /dev/null --write-out '%{http_code}' "$INPUT_URL" || true)"
+
+          if [ "$head_status" -ge 200 ] 2>/dev/null && [ "$head_status" -lt 400 ]; then
+            echo "Availability check passed for $INPUT_URL using HEAD request"
+            exit 0
+          fi
+
+          range_status="$(curl -fsSL --retry 3 --max-time 30 --range 0-0 --max-filesize 1 --output /dev/null --write-out '%{http_code}' "$INPUT_URL" || true)"
+
+          if [ "$range_status" -ge 200 ] 2>/dev/null && [ "$range_status" -lt 400 ]; then
+            echo "Availability check passed for $INPUT_URL using one-byte range request"
+            exit 0
+          fi
+
+          echo "::error title=Site monitoring failed::Availability check failed for $INPUT_URL."
+          {
+            echo "## Site monitoring failed"
+            echo "- URL: [$INPUT_URL]($INPUT_URL)"
+            echo "- Reason: The URL did not return a successful response."
+            echo "- HEAD status: ${head_status:-failed}"
+            echo "- Range status: ${range_status:-failed}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi
 
         if ! response_body="$(curl -fsSL --retry 3 --max-time 30 "$INPUT_URL")"; then
           echo "::error title=Site monitoring failed::Request failed for $INPUT_URL."
