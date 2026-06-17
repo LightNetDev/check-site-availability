@@ -23,6 +23,8 @@ This action is designed for simple site and file validation checks. It can catch
 
 ## Usage
 
+In your site's repository create file `.github/workflows/check-site-availability.yaml`:
+
 ```yaml
 name: Check site availability
 
@@ -70,9 +72,9 @@ Scheduled monitoring is not a good fit for **public repositories** that may sit 
 
 ## Inputs
 
-| Input           | Required | Description                                                                                 |
-| --------------- | -------- | ------------------------------------------------------------------------------------------- |
-| `url`           | Yes      | Full URL to request.                                                                        |
+| Input           | Required | Description                                                                                |
+| --------------- | -------- | ------------------------------------------------------------------------------------------ |
+| `url`           | Yes      | Full URL to request.                                                                       |
 | `expected-text` | No       | Literal text fragment that must appear in the response body. Omit for availability checks. |
 
 ## Failure Behavior
