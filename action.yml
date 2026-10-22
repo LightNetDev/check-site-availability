@@ -10,7 +10,7 @@ inputs:
     description: Full URL to request.
     required: true
   expected-text:
-    description: Optional text fragment that must appear in the response body. Omit to check URL availability only.
+    description: Optional text fragment that must appear in the response body. Omit to check that a GET request returns content.
     required: false
 
 runs:
@@ -37,17 +37,43 @@ runs:
         echo "Checking $INPUT_URL"
 
         if [ -z "$INPUT_EXPECTED_TEXT" ]; then
-          head_status="$(curl -fsSLI --retry 3 --max-time 30 --output /dev/null --write-out '%{http_code}' "$INPUT_URL" || true)"
+          probe_dir="$(mktemp -d "${RUNNER_TEMP:?}/site-probe.XXXXXX")"
+          trap 'rm -rf -- "$probe_dir"' EXIT
+          prefix_limit=1024
 
-          if [ "$head_status" -ge 200 ] 2>/dev/null && [ "$head_status" -lt 400 ]; then
-            echo "Availability check passed for $INPUT_URL using HEAD request"
-            exit 0
+          # Write metadata to stderr separately from the binary body. Silence curl's
+          # diagnostics so this file contains only the final HTTP status.
+          # Capture both pipeline statuses before any other command overwrites them.
+          if curl -fsL --retry 3 --max-time 30 --range 0-1023 \
+            --write-out '%{stderr}%{http_code}\n' "$INPUT_URL" 2>"$probe_dir/status" \
+            | head -c "$prefix_limit" >"$probe_dir/body"; then
+            probe_statuses=("${PIPESTATUS[@]}")
+          else
+            probe_statuses=("${PIPESTATUS[@]}")
           fi
 
-          range_status="$(curl -fsSL --retry 3 --max-time 30 --range 0-0 --max-filesize 1 --output /dev/null --write-out '%{http_code}' "$INPUT_URL" || true)"
+          http_status="$(cat "$probe_dir/status")"
+          bytes_received="$(wc -c <"$probe_dir/body")"
+          curl_status="${probe_statuses[0]}"
+          reader_status="${probe_statuses[1]}"
+          reason=""
 
-          if [ "$range_status" -ge 200 ] 2>/dev/null && [ "$range_status" -lt 400 ]; then
-            echo "Availability check passed for $INPUT_URL using one-byte range request"
+          if [[ ! "$http_status" =~ ^2[0-9][0-9]$ ]]; then
+            reason="The GET request did not return a successful HTTP response."
+          elif [ "$reader_status" -ne 0 ]; then
+            reason="Could not save the response prefix."
+          elif [ "$bytes_received" -eq 0 ]; then
+            reason="The GET response contained no content."
+          elif [ "$curl_status" -ne 0 ]; then
+            # A full prefix can close the pipe before curl finishes when Range
+            # is ignored. Accept only that intentional write error.
+            if [ "$curl_status" -ne 23 ] || [ "$bytes_received" -ne "$prefix_limit" ]; then
+              reason="The GET transfer failed before the response prefix was complete."
+            fi
+          fi
+
+          if [ -z "$reason" ]; then
+            echo "Availability check passed for $INPUT_URL using GET (HTTP $http_status, $bytes_received bytes received)"
             exit 0
           fi
 
@@ -55,9 +81,11 @@ runs:
           {
             echo "## Site monitoring failed"
             echo "- URL: [$INPUT_URL]($INPUT_URL)"
-            echo "- Reason: The URL did not return a successful response."
-            echo "- HEAD status: ${head_status:-failed}"
-            echo "- Range status: ${range_status:-failed}"
+            echo "- Reason: $reason"
+            echo "- HTTP status: ${http_status:-unavailable}"
+            echo "- Curl exit code: $curl_status"
+            echo "- Prefix reader exit code: $reader_status"
+            echo "- Bytes received: $bytes_received"
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
         fi

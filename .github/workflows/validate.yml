@@ -105,3 +105,89 @@ jobs:
           if [ -n "${SERVER_PID:-}" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
             kill "$SERVER_PID"
           fi
+
+  availability-probe:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - case: range
+            outcome: success
+          - case: short
+            outcome: success
+          - case: large
+            outcome: success
+          - case: binary
+            outcome: success
+          - case: redirect
+            outcome: success
+          - case: head-get-fail
+            outcome: failure
+          - case: terminal-redirect
+            outcome: failure
+          - case: empty
+            outcome: failure
+          - case: no-content
+            outcome: failure
+          - case: missing
+            outcome: failure
+          - case: truncated
+            outcome: failure
+          - case: connection-failure
+            outcome: failure
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Start probe fixture server
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 test/server.py --audit "$RUNNER_TEMP/probe-audit.jsonl" >"$RUNNER_TEMP/probe-server.log" 2>&1 &
+          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8123/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/probe-server.log"
+          exit 1
+
+      - name: Select probe URL
+        shell: bash
+        env:
+          PROBE_CASE: ${{ matrix.case }}
+        run: |
+          if [ "$PROBE_CASE" = connection-failure ]; then
+            echo "PROBE_URL=http://127.0.0.1:65535/" >> "$GITHUB_ENV"
+          else
+            echo "PROBE_URL=http://127.0.0.1:8123/probe/$PROBE_CASE" >> "$GITHUB_ENV"
+          fi
+
+      - name: Check probe
+        id: probe
+        continue-on-error: true
+        uses: ./
+        with:
+          url: ${{ env.PROBE_URL }}
+
+      - name: Assert result and request behavior
+        shell: bash
+        env:
+          ACTUAL_OUTCOME: ${{ steps.probe.outcome }}
+          EXPECTED_OUTCOME: ${{ matrix.outcome }}
+          PROBE_CASE: ${{ matrix.case }}
+        run: |
+          set -euo pipefail
+          [ "$ACTUAL_OUTCOME" = "$EXPECTED_OUTCOME" ]
+          python3 test/assert-probe.py "$PROBE_CASE" "$RUNNER_TEMP/probe-audit.jsonl"
+
+      - name: Stop probe fixture server
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${SERVER_PID:-}" ]; then
+            kill "$SERVER_PID"
+          fi
